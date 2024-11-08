@@ -62,10 +62,8 @@ if flowFile is not None:
 
     # Merge the updated earnings dates back into flows DataFrame
     updated_df = pd.DataFrame(updated_rows)
-    flows = flows.merge(updated_df, on='Symbol', how='left', suffixes=('', '_new'))
-    flows['EarningsDate'] = flows['EarningsDate'].combine_first(flows['EarningsDate_new'])
-    flows.drop(columns=['EarningsDate_new'], inplace=True)
-
+    flows = flows.merge(updated_df, on='Symbol', how='left')
+    
     st.write("Flows:")
     st.write(flows)
     # flows.to_excel("output_data.xlsx", index=False)
