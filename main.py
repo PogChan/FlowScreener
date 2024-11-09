@@ -1,8 +1,8 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
-from helper import * 
-
+from helper import *
+from db import *
 
 flowFile = st.file_uploader("Upload Flow File")
 
@@ -26,9 +26,11 @@ if flowFile is not None:
     today = datetime.today()
     this_week_friday = (today + timedelta((4 - today.weekday()) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
     next_week_friday = (this_week_friday + timedelta(days=7)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    last_week_sunday = (today - timedelta(days=today.weekday() + 1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     st.write(this_week_friday)
     st.write(next_week_friday)
+    st.write(last_week_sunday)
     flows['ExpirationDate'] = pd.to_datetime(flows['ExpirationDate'], errors='coerce')
 
     flows = flows[(flows['ExpirationDate'] >= this_week_friday) & (flows['ExpirationDate'] <= next_week_friday)]
@@ -36,14 +38,16 @@ if flowFile is not None:
     updated_rows = []
 
     # Loop through flows for symbols with ER=True
-    for _, row in flows[flows['ER'] == 'T'].iterrows():
+    for _, row in flows[flows['ER'] == 'T'].drop_duplicates(subset='Symbol').iterrows():
         symbol = row['Symbol']
         cached_date_str = get_cached_date(symbol)
 
+        st.write(symbol, 'Cached', cached_date_str)
         # Check if cached date is within this and next week
         if cached_date_str:
             cached_date = datetime.strptime(cached_date_str, "%Y-%m-%d")
-            if this_week_friday <= cached_date <= next_week_friday:
+
+            if last_week_sunday <= cached_date <= next_week_friday:
                 earnings_date = cached_date_str
             else:
                 earnings_date = get_earnings_date(symbol, driver)
@@ -63,7 +67,7 @@ if flowFile is not None:
     # Merge the updated earnings dates back into flows DataFrame
     updated_df = pd.DataFrame(updated_rows)
     flows = flows.merge(updated_df, on='Symbol', how='left')
-    
+
     st.write("Flows:")
     st.write(flows)
     # flows.to_excel("output_data.xlsx", index=False)

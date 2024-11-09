@@ -5,11 +5,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
-import streamlit as st 
+import streamlit as st
 from datetime import datetime
-import os
-import pandas as pd 
-import sqlite3
+
+import pandas as pd
+
 
 # Function to get earnings date for a specific stock using an existing driver
 def get_earnings_date(stock_symbol, driver):
@@ -33,29 +33,3 @@ def get_earnings_date(stock_symbol, driver):
     except Exception as e:
         st.write(f"An error occurred for {stock_symbol.upper()}: {e}")
         return None
-
-# SQLite database functions
-def create_database(db_name="earnings_cache.db"):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS earnings_dates (
-                      Symbol TEXT PRIMARY KEY,
-                      EarningsDate TEXT
-                      )''')
-    conn.commit()
-    conn.close()
-
-def get_cached_date(symbol, db_name="earnings_cache.db"):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute("SELECT EarningsDate FROM earnings_dates WHERE Symbol = ?", (symbol,))
-    result = cursor.fetchone()
-    conn.close()
-    return result[0] if result else None
-
-def update_cache(symbol, earnings_date, db_name="earnings_cache.db"):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO earnings_dates (Symbol, EarningsDate) VALUES (?, ?)", (symbol, earnings_date))
-    conn.commit()
-    conn.close()
