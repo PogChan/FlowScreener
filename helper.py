@@ -9,13 +9,13 @@ import streamlit as st
 from datetime import datetime
 import requests
 import pandas as pd
+import time 
 
 # Function to get earnings date for a specific stock using an existing driver
 @st.cache_data(ttl=43200)
 def get_earnings_date(stock_symbol, _driver):
     url = f'https://www.nasdaq.com/market-activity/stocks/{stock_symbol}/earnings'
     _driver.get(url)
-
     try:
         WebDriverWait(_driver, 3).until(
             EC.presence_of_element_located((By.CLASS_NAME, 'announcement-date'))
@@ -83,3 +83,39 @@ def calculate_avg_volume_for_expiration(options_data, spot_price, expiration_dat
     avg_volume = df['Volume'].mean()  # Calculate average volume
 
     return avg_volume
+
+@st.cache_data(ttl=43200)
+def moneiness(flow, options_chain):
+    strike = float(flow['Strike'])
+    spot = float(flow['Spot'])
+    option_type = flow['CallPut']  # Expecting 'CALL' or 'PUT'
+    
+    # Extract all strikes from the options chain to find the closest to ATM
+    strikes = []
+    for expiry in options_chain['options']:
+        calls = options_chain['options'][expiry].get('c', {})
+        puts = options_chain['options'][expiry].get('p', {})
+        strikes.extend(float(strike) for strike in calls.keys())
+        strikes.extend(float(strike) for strike in puts.keys())
+    
+    # Find the closest strike to the spot price for ATM reference
+    closest_strike = min(strikes, key=lambda x: abs(x - spot))
+    
+    # Determine moneyness
+    if option_type == 'CALL':
+        if strike < spot:
+            return "ITM"
+        elif strike > spot:
+            return "OTM"
+        else:
+            return "ATM" if strike == closest_strike else ("ITM" if strike < spot else "OTM")
+    
+    elif option_type == 'PUT':
+        if strike > spot:
+            return "ITM"
+        elif strike < spot:
+            return "OTM"
+        else:
+            return "ATM" if strike == closest_strike else ("ITM" if strike > spot else "OTM")
+    
+    return "Unknown"  # In case of an unexpected option type

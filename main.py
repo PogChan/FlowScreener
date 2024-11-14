@@ -21,6 +21,8 @@ if flowFile is not None:
     chrome_options.add_argument("--headless")  # Run in headless mode
     chrome_options.add_argument("--no-sandbox")  # Recommended for some headless environments
     chrome_options.add_argument("--disable-dev-shm-usage")  # Recommended for some headless environments
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    chrome_options.add_argument(f"user-agent={user_agent}")
 
     # Initialize ChromeDriver with WebDriver Manager
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -58,6 +60,7 @@ if flowFile is not None:
             else:
                 earnings_date = get_earnings_date(symbol, driver)
                 if earnings_date:
+                    st.write('ER found!', symbol, earnings_date)
                     update_cache(symbol, earnings_date)
         else:
             earnings_date = get_earnings_date(symbol, driver)
@@ -65,7 +68,6 @@ if flowFile is not None:
                 update_cache(symbol, earnings_date)
 
         updated_rows.append({"Symbol": symbol, "EarningsDate": earnings_date})
-
 
     # Close the browser
     driver.quit()
@@ -75,18 +77,23 @@ if flowFile is not None:
     flows = flows.merge(updated_df, on='Symbol', how='left')
 
     flows['Buy/Sell'] = flows['Side'].apply(lambda x: 'BUY' if x in ['A', 'AA'] else 'SELL')
-    
+    # flows['Moneiness'] = flows.apply(lambda flow: moneiness(flow, get_options_chain(flow['Symbol'])), axis=1)
+
+
     st.title("Flows:")
     st.write(flows)
 
     grouped_flows = flows.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
+        # 'Moneiness':'first',
+        'Volume': 'sum',     
+        'OI': 'first',                                                                  
+        'Price': 'median',                                 
+        'Premium': 'sum',    
         'Spot': lambda x: f"{min(x)}-{max(x)}",            # Combine Spot as min-max string
-        'Volume': 'sum',                                   # Sum the Volume
-        'Price': 'median',                                 # Median of the Price
-        'Premium': 'sum',                                  # Sum the Premium
-        'OI': 'first',                                     # Retain the first OI
         'ER': 'first',                                     # Take the first as it should be the same
         'EarningsDate': 'first',        
+        'CreatedDate': lambda x: f"{min(x)}-{max(x)}", 
+        'CreatedTime': lambda x: f"{min(x)}-{max(x)}",
         'ImpliedVolatility': 'mean',                       # Average Implied Volatility
         'MktCap': 'first',                                 # Take the first as it should be the same
         'Sector': 'first',                                 # Take the first as it should be the same
@@ -96,10 +103,9 @@ if flowFile is not None:
         'Weekly': 'first',                               # Take the first as it should be the same
         'Side': 'first',
         'Type': 'first',
-        'CreatedDate': lambda x: f"{min(x)}-{max(x)}", 
-        'CreatedTime': lambda x: f"{min(x)}-{max(x)}"
     }).reset_index()
     
+    #These are just determining the raw direction of the stock
     conditions = [
         (grouped_flows['Buy/Sell'] == 'SELL') & (grouped_flows['CallPut'] == 'CALL'),
         (grouped_flows['Buy/Sell'] == 'BUY') & (grouped_flows['CallPut'] == 'CALL'),
@@ -117,7 +123,7 @@ if flowFile is not None:
         .index
     )
 
-    grouped_flows = grouped_flows[grouped_flows['Volume'] > 300]
+    # grouped_flows = grouped_flows[grouped_flows['Volume'] > 300]
 
     # consistent symbols with the same direciton
     consistent_df = grouped_flows[grouped_flows['Symbol'].isin(consistent_direction_symbols)]
@@ -151,9 +157,7 @@ if flowFile is not None:
         st.dataframe(multi_leg_symbols)
         st.stop()
 
-
-
-
+    #Now you want to make sure that those with two directions are actually trades with a 30% hedge.
     st.dataframe(consistent_df)
     st.dataframe(remaining_df)
     filtered_remaining = []
@@ -173,13 +177,22 @@ if flowFile is not None:
     filtered_remaining_df = pd.concat(filtered_remaining, ignore_index=True)
     st.write('Remaining After filtering', filtered_remaining_df)
 
- 
+    ### The fnal shits
     # Combine consistent_df with the filtered remaining data for final result
     final_df = pd.concat([consistent_df, filtered_remaining_df], ignore_index=True)
 
-    final_df= final_df[final_df['Premium'] > 50000]
+    # make sure that Volume is at least 1.5x for each of the same Symbol, EXpiration, side etc. cause like if after aggregating and ur still not that big of an OI then gg bro
     final_df = final_df[1.5 * final_df['Volume'] >= final_df['OI']]
 
+    #Aggregate all the symbols and then we can determine if the total trades on the stock is of a decent size. 
+    totalPremiumPerStock = final_df.groupby('Symbol').agg({
+        'Volume': 'sum',
+        'Premium': 'sum'
+    }).reset_index()
+    totalPremiumPerStock= totalPremiumPerStock[totalPremiumPerStock['Premium'] > 80000]
+
+    final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'].unique())]
+    final_df.reset_index(drop=True, inplace=True)
     st.dataframe(final_df)
     #Greater than avreage OI #TODO
     filtered_flows = []
