@@ -207,6 +207,9 @@ if flowFile is not None:
 
 
     final_df['Moneiness'] = final_df.apply(lambda flow: moneiness(flow, get_options_chain(flow['Symbol'])), axis=1)
+    final_df['StrikeDiff'] = final_df['Moneiness'].apply(lambda x: int(x.split('-')[1]) if '-' in x else 0)
+    final_df = final_df[final_df['StrikeDiff'] <= 10]
+    final_df = final_df.drop(columns=['StrikeDiff'])
 
     final_df['Premium'] = final_df['Premium'].apply(lambda x: f"{x:,.2f}")
 

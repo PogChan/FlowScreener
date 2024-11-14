@@ -101,33 +101,64 @@ def moneiness(flow, options_chain):
     spot = float(flow['Spot'])
     option_type = flow['CallPut']  # Expecting 'CALL' or 'PUT'
     
-    # Extract all strikes from the options chain to find the closest to ATM
+    # Convert the expiration date to the correct string format
+    expiration_date = flow['ExpirationDate']
+    expiration_date_str = pd.to_datetime(expiration_date).strftime("%Y-%m-%d")
+    
+    # Extract all strikes from the options chain for the specific expiration
     strikes = []
-    for expiry in options_chain['options']:
-        calls = options_chain['options'][expiry].get('c', {})
-        puts = options_chain['options'][expiry].get('p', {})
+    if expiration_date_str in options_chain['options']:
+        expiry_options = options_chain['options'][expiration_date_str]
+        
+        calls = expiry_options.get('c', {})
         strikes.extend(float(strike) for strike in calls.keys())
-        strikes.extend(float(strike) for strike in puts.keys())
+
+    # Sort strikes for further calculations
+    strikes = sorted(strikes)
+    # st.write(strikes)
+    # st.write(flow)
+    # st.write(spot)
     
     # Find the closest strike to the spot price for ATM reference
-    closest_strike = min(strikes, key=lambda x: abs(x - spot))
+    if strikes:
+        closest_strike = min(strikes, key=lambda x: abs(x - spot))
+    else:
+        return "Unknown"  # If no strikes are found for the expiration
+
+    # Calculate the absolute difference between the current strike and closest ATM strike
+    abs_diff = abs(strike - closest_strike)
     
-    # Determine moneyness
+    # Determine the smallest increment between consecutive strikes (assuming strikes are evenly spaced)
+    if len(strikes) > 1:
+        min_increment = min([abs(strikes[i+1] - strikes[i]) for i in range(len(strikes) - 1)])
+    else:
+        min_increment = 1  # Default increment if there's only one strike (unlikely case)
+
+    # Calculate how many steps away the current strike is from the closest ATM strike
+    if min_increment is None or min_increment == 0:
+        strike_diff = 0  # Treat as ATM if only one strike or no meaningful difference
+    else:
+        strike_diff = int(round(abs_diff / min_increment))
+
+    # st.write(closest_strike)
+    # st.write(f"Absolute Difference: {abs_diff}, Minimum Increment: {min_increment}, Strike Difference: {strike_diff}")
+    
+    # Determine moneyness and append number of strikes away if OTM or ITM
     if option_type == 'CALL':
         if strike < spot:
-            return "ITM"
+            return f"ITM-{strike_diff}" if strike_diff > 0 else "ITM"
         elif strike > spot:
-            return "OTM"
+            return f"OTM-{strike_diff}" if strike_diff > 0 else "OTM"
         else:
-            return "ATM" if strike == closest_strike else ("ITM" if strike < spot else "OTM")
+            return "ATM"
     
     elif option_type == 'PUT':
         if strike > spot:
-            return "ITM"
+            return f"ITM-{strike_diff}" if strike_diff > 0 else "ITM"
         elif strike < spot:
-            return "OTM"
+            return f"OTM-{strike_diff}" if strike_diff > 0 else "OTM"
         else:
-            return "ATM" if strike == closest_strike else ("ITM" if strike > spot else "OTM")
+            return "ATM"
     
     return "Unknown"  # In case of an unexpected option type
 
