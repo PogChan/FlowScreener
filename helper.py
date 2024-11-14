@@ -145,17 +145,17 @@ def moneiness(flow, options_chain):
     
     # Determine moneyness and append number of strikes away if OTM or ITM
     if option_type == 'CALL':
-        if strike < spot:
+        if strike < spot and strike_diff != 0:
             return f"ITM-{strike_diff}" if strike_diff > 0 else "ITM"
-        elif strike > spot:
+        elif strike > spot and strike_diff != 0:
             return f"OTM-{strike_diff}" if strike_diff > 0 else "OTM"
         else:
             return "ATM"
     
     elif option_type == 'PUT':
-        if strike > spot:
+        if strike > spot and strike_diff != 0:
             return f"ITM-{strike_diff}" if strike_diff > 0 else "ITM"
-        elif strike < spot:
+        elif strike < spot and strike_diff != 0:
             return f"OTM-{strike_diff}" if strike_diff > 0 else "OTM"
         else:
             return "ATM"
