@@ -31,6 +31,10 @@ if flowFile is not None:
     create_database()
 
     today = datetime.today()
+
+    todayDATE = datetime.now().date()
+    tomorrow = todayDATE + timedelta(days=1)
+
     this_week_friday = (today + timedelta((4 - today.weekday()) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
     next_week_friday = (this_week_friday + timedelta(days=7)).replace(hour=23, minute=59, second=59, microsecond=999999)
     last_week_sunday = (today - timedelta(days=today.weekday() + 1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -76,8 +80,12 @@ if flowFile is not None:
     updated_df = pd.DataFrame(updated_rows)
     flows = flows.merge(updated_df, on='Symbol', how='left')
 
+    flows['ExpirationDate'] = pd.to_datetime(flows['ExpirationDate'],  errors='coerce').dt.date
+    flows['EarningsDate'] = pd.to_datetime(flows['EarningsDate'], errors='coerce').dt.date
+
+    flows = flows[~flows['EarningsDate'].isin([todayDATE, tomorrow])]
+
     flows['Buy/Sell'] = flows['Side'].apply(lambda x: 'BUY' if x in ['A', 'AA'] else 'SELL')
-    # flows['Moneiness'] = flows.apply(lambda flow: moneiness(flow, get_options_chain(flow['Symbol'])), axis=1)
 
 
     st.title("Flows:")
@@ -85,11 +93,11 @@ if flowFile is not None:
 
     grouped_flows = flows.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
         # 'Moneiness':'first',
+        'Spot': 'median',            # Combine Spot as min-max string
         'Volume': 'sum',     
         'OI': 'first',                                                                  
         'Price': 'median',                                 
         'Premium': 'sum',    
-        'Spot': lambda x: f"{min(x)}-{max(x)}",            # Combine Spot as min-max string
         'ER': 'first',                                     # Take the first as it should be the same
         'EarningsDate': 'first',        
         'CreatedDate': lambda x: f"{min(x)}-{max(x)}", 
@@ -191,7 +199,22 @@ if flowFile is not None:
     }).reset_index()
     totalPremiumPerStock= totalPremiumPerStock[totalPremiumPerStock['Premium'] > 80000]
 
-    final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'].unique())]
+    final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'])]
+    #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each 
+    pc_ratios = {symbol: stockPC(symbol) for symbol in final_df['Symbol'].unique()}
+    pc_df = pd.DataFrame(list(pc_ratios.items()), columns=['Symbol', 'PC'])
+    final_df = final_df.merge(pc_df, on='Symbol', how='left')
+
+
+    final_df['Moneiness'] = final_df.apply(lambda flow: moneiness(flow, get_options_chain(flow['Symbol'])), axis=1)
+
+    final_df['Premium'] = final_df['Premium'].apply(lambda x: f"{x:,.2f}")
+
+    flowTrackingCols = ['Symbol', 'Buy/Sell','ExpirationDate', 'Moneiness', 'CallPut', 'Volume', 'Price', 'PC']
+    remaining_columns = [col for col in final_df.columns if col not in flowTrackingCols]
+    final_column_order = flowTrackingCols + remaining_columns
+    final_df = final_df[final_column_order]
+
     final_df.reset_index(drop=True, inplace=True)
     st.dataframe(final_df)
     #Greater than avreage OI #TODO

@@ -10,6 +10,7 @@ from datetime import datetime
 import requests
 import pandas as pd
 import time 
+import random
 
 # Function to get earnings date for a specific stock using an existing driver
 @st.cache_data(ttl=43200)
@@ -33,18 +34,28 @@ def get_earnings_date(stock_symbol, _driver):
     except Exception as e:
         st.write(f"An error occurred for {stock_symbol.upper()}: {e}")
         return None
+    
+session = requests.Session()
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
+]
+
 
 @st.cache_data(ttl=43200)
 # Define function to fetch options chain data from API
 def get_options_chain(symbol):
-    url = f"https://www.optionsprofitcalculator.com/ajax/getOptions?stock={symbol.upper()}&reqId=1"
+    url = f"https://www.optionsprofitcalculator.com/ajax/getOptions?stock={symbol.upper()}&reqId={random.randint(1, 1000000)}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        'User-Agent': random.choice(user_agents),
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.optionsprofitcalculator.com/"
+        'Referer': 'https://www.optionsprofitcalculator.com/',
+        'Accept': 'application/json',
     }
-    # st.write(url)
-    response = requests.get(url, headers=headers)
+    st.write(url)
+    time.sleep(1)
+    response = session.get(url, headers=headers)
 
     if response.status_code == 200:
         return response.json()
@@ -119,3 +130,51 @@ def moneiness(flow, options_chain):
             return "ATM" if strike == closest_strike else ("ITM" if strike > spot else "OTM")
     
     return "Unknown"  # In case of an unexpected option type
+
+
+def stockPC(symbol):
+    """
+    Calculate the put-to-call ratio for the given stock's option chain based on open interest (OI)
+    and average exposure from bid/ask price.
+
+    Args:
+    - flow (dict or pandas Series): A single flow containing information about the option, including the symbol.
+    - option_chain (dict): A dictionary containing the options data for a given symbol, typically fetched from an API.
+
+    Returns:
+    - float: The Put-to-Call ratio based on OI and premium exposure.
+    """
+    option_chain = get_options_chain(symbol)
+    # Initialize totals for puts and calls
+    total_put_exposure = 0.0
+    total_call_exposure = 0.0
+    if option_chain:
+        # Iterate through the options chain dictionary
+        for expiration, options in option_chain['options'].items():
+            # Options data is usually nested with 'c' for calls and 'p' for puts
+            calls = options.get('c', {})
+            puts = options.get('p', {})
+            
+            # Sum exposure for call options
+            for strike, call_data in calls.items():
+                if 'oi' in call_data and 'b' in call_data and 'a' in call_data:
+                    # Calculate the average of bid and ask
+                    avg_price = (call_data['b'] + call_data['a']) / 2
+                    # Multiply by OI to get total premium exposure
+                    total_call_exposure += call_data['oi'] * avg_price
+            
+            # Sum exposure for put options
+            for strike, put_data in puts.items():
+                if 'oi' in put_data and 'b' in put_data and 'a' in put_data:
+                    # Calculate the average of bid and ask
+                    avg_price = (put_data['b'] + put_data['a']) / 2
+                    # Multiply by OI to get total premium exposure
+                    total_put_exposure += put_data['oi'] * avg_price
+        
+        # Calculate the Put-to-Call ratio based on premium exposure (OI * Avg Bid/Ask)
+        # To avoid division by zero, return a large value (e.g., float('inf')) if there is no call exposure
+        if total_call_exposure == 0:
+            return float('inf')  # P/C ratio tends to infinity if there are no calls
+        else:
+            return total_put_exposure / total_call_exposure
+
