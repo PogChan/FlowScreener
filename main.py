@@ -171,7 +171,30 @@ if flowFile is not None:
     filtered_remaining = []
     for symbol in remaining_df['Symbol'].unique():
         symbol_df = remaining_df[remaining_df['Symbol'] == symbol]
-        
+
+        # Step 1: Sort the symbol_df by relevant columns to align buy/sell pairs
+        symbol_df = symbol_df.sort_values(by=['ExpirationDate', 'CallPut', 'Strike', 'Buy/Sell'])
+        st.write(symbol_df)
+        # Step 2: Identify and remove net-zero activity (matching buy/sell pairs)
+        to_drop = []
+
+        for i in range(len(symbol_df) - 1):
+            row1 = symbol_df.iloc[i]
+            row2 = symbol_df.iloc[i + 1]
+            # Check if the current row and the next row form a buy/sell pair with net-zero effect
+            if (
+                row1['Symbol'] == row2['Symbol'] and
+                row1['ExpirationDate'] == row2['ExpirationDate'] and
+                row1['CallPut'] == row2['CallPut'] and
+                row1['Strike'] == row2['Strike'] and
+                row1['Buy/Sell'] != row2['Buy/Sell'] and
+                abs(row1['Premium'] - row2['Premium']) <= 50000
+            ):
+                to_drop.extend([i, i + 1])
+
+        # Drop the identified rows (net-zero buy/sell pairs)
+        symbol_df = symbol_df.drop(symbol_df.index[to_drop])
+
         # Calculate total premium for bullish and bearish directions
         bullish_premium = symbol_df[symbol_df['Direction'] == 'BULLISH']['Premium'].sum()
         bearish_premium = symbol_df[symbol_df['Direction'] == 'BEARISH']['Premium'].sum()
@@ -193,11 +216,11 @@ if flowFile is not None:
     final_df = final_df[1.5 * final_df['Volume'] >= final_df['OI']]
 
     #Aggregate all the symbols and then we can determine if the total trades on the stock is of a decent size. 
-    totalPremiumPerStock = final_df.groupby('Symbol').agg({
+    totalPremiumPerStock = final_df.groupby(['Symbol', 'Direction']).agg({
         'Volume': 'sum',
         'Premium': 'sum'
     }).reset_index()
-    totalPremiumPerStock= totalPremiumPerStock[totalPremiumPerStock['Premium'] > 80000]
+    totalPremiumPerStock= totalPremiumPerStock[totalPremiumPerStock['Premium'] > 100000]
 
     final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'])]
     #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each 
