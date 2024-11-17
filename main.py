@@ -123,6 +123,7 @@ if flowFile is not None:
     directions = ['BEARISH', 'BULLISH', 'BULLISH', 'BEARISH']
     grouped_flows['Direction'] = np.select(conditions, directions, default='neutral')
 
+    st.write(grouped_flows)
     # For normal flkow you would want to ensure that Identify symbols where all entries have the same direction cause thats good directional bais not straddle shits
     consistent_direction_symbols = (
         grouped_flows.groupby('Symbol')['Direction']
@@ -133,7 +134,7 @@ if flowFile is not None:
 
     # grouped_flows = grouped_flows[grouped_flows['Volume'] > 300]
 
-    # consistent symbols with the same direciton
+    # consistent symbols with the same directions
     consistent_df = grouped_flows[grouped_flows['Symbol'].isin(consistent_direction_symbols)]
     #inconsistent symbols with multiple directions
     remaining_df = grouped_flows[~grouped_flows['Symbol'].isin(consistent_direction_symbols)]
@@ -142,7 +143,7 @@ if flowFile is not None:
         # Step 1: Filter for symbols with more than one entry and high premium
         # We are interested only in trades with premiums over $100,000 to narrow down
         grouped_flows = grouped_flows[grouped_flows['Premium'] > 100000]
-        multi_leg_candidates = grouped_flows.groupby(['Symbol', 'Direction', 'ExpirationDate']).filter(lambda x: len(x) > 1)
+        multi_leg_candidates = grouped_flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
 
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
@@ -151,7 +152,9 @@ if flowFile is not None:
             # Ensure there is at least one BUY and one SELL
             has_buy = (group['Buy/Sell'] == 'BUY').any()
             has_sell = (group['Buy/Sell'] == 'SELL').any()
-            call_put_check = set(group['CallPut']).issubset({'CALL', 'PUT'})
+
+            # Ensure there is at least one CALL and one PUT in the group
+            call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
 
             if has_buy and has_sell and call_put_check:
                 # Calculate the net premium spent
@@ -165,12 +168,13 @@ if flowFile is not None:
             return False
 
         # Apply the multi-leg filter to find qualifying groups
-        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'Direction']).filter(is_multi_leg)
+        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol']).filter(is_multi_leg)
 
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
         st.stop()
+
 
     #Now you want to make sure that those with two directions are actually trades with a 30% hedge.
     st.dataframe(consistent_df)
