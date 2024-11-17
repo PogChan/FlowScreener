@@ -94,13 +94,13 @@ if flowFile is not None:
     grouped_flows = flows.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
         # 'Moneiness':'first',
         'Spot': 'median',            # Combine Spot as min-max string
-        'Volume': 'sum',     
-        'OI': 'first',                                                                  
-        'Price': 'median',                                 
-        'Premium': 'sum',    
+        'Volume': 'sum',
+        'OI': 'first',
+        'Price': 'median',
+        'Premium': 'sum',
         'ER': 'first',                                     # Take the first as it should be the same
-        'EarningsDate': 'first',        
-        'CreatedDate': lambda x: f"{min(x)}-{max(x)}", 
+        'EarningsDate': 'first',
+        'CreatedDate': lambda x: f"{min(x)}-{max(x)}",
         'CreatedTime': lambda x: f"{min(x)}-{max(x)}",
         'ImpliedVolatility': 'mean',                       # Average Implied Volatility
         'MktCap': 'first',                                 # Take the first as it should be the same
@@ -112,7 +112,7 @@ if flowFile is not None:
         'Side': 'first',
         'Type': 'first',
     }).reset_index()
-    
+
     #These are just determining the raw direction of the stock
     conditions = [
         (grouped_flows['Buy/Sell'] == 'SELL') & (grouped_flows['CallPut'] == 'CALL'),
@@ -137,28 +137,35 @@ if flowFile is not None:
     consistent_df = grouped_flows[grouped_flows['Symbol'].isin(consistent_direction_symbols)]
     #inconsistent symbols with multiple directions
     remaining_df = grouped_flows[~grouped_flows['Symbol'].isin(consistent_direction_symbols)]
-    
+
     if multiLegs:
-        # Step 1: Filter for symbols with more than one entry and a high premium
+        # Step 1: Filter for symbols with more than one entry and high premium
+        # We are interested only in trades with premiums over $100,000 to narrow down
         grouped_flows = grouped_flows[grouped_flows['Premium'] > 100000]
         multi_leg_candidates = grouped_flows.groupby(['Symbol', 'Direction', 'ExpirationDate']).filter(lambda x: len(x) > 1)
-        
-        st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates
 
-        # Step 2: Define the multi-leg check function with a diagnostic for "EWZ"
+        st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
+
+        # Step 2: Define the multi-leg check function
         def is_multi_leg(group):
-            # Check conditions for multi-leg criteria
-            expiration_check = group['ExpirationDate'].nunique() == 1
-            created_date_check = group['CreatedDate'].nunique() == 1
-            created_time_check = group['CreatedTime'].nunique() == 1
-            call_put_check = set(group['CallPut']) == {'CALL', 'PUT'}
-            direction_check = group['Direction'].nunique() == 1
-            
-            # All conditions must be met
-            return expiration_check and created_date_check and created_time_check and call_put_check and direction_check
+            # Ensure there is at least one BUY and one SELL
+            has_buy = (group['Buy/Sell'] == 'BUY').any()
+            has_sell = (group['Buy/Sell'] == 'SELL').any()
+            call_put_check = set(group['CallPut']).issubset({'CALL', 'PUT'})
 
-        # Apply the multi-leg filter
-        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'Direction', 'ExpirationDate']).filter(is_multi_leg)
+            if has_buy and has_sell and call_put_check:
+                # Calculate the net premium spent
+                total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
+                total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
+                net_premium_spent = total_buy_premium - total_sell_premium
+
+                # We want to ensure the trader is spending at least $80,000 in net
+                if net_premium_spent >= 80000:
+                    return True
+            return False
+
+        # Apply the multi-leg filter to find qualifying groups
+        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'Direction']).filter(is_multi_leg)
 
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
@@ -215,7 +222,7 @@ if flowFile is not None:
     # make sure that Volume is at least 1.5x for each of the same Symbol, EXpiration, side etc. cause like if after aggregating and ur still not that big of an OI then gg bro
     final_df = final_df[1.5 * final_df['Volume'] >= final_df['OI']]
 
-    #Aggregate all the symbols and then we can determine if the total trades on the stock is of a decent size. 
+    #Aggregate all the symbols and then we can determine if the total trades on the stock is of a decent size.
     totalPremiumPerStock = final_df.groupby(['Symbol', 'Direction']).agg({
         'Volume': 'sum',
         'Premium': 'sum'
@@ -223,7 +230,7 @@ if flowFile is not None:
     totalPremiumPerStock= totalPremiumPerStock[totalPremiumPerStock['Premium'] > 100000]
 
     final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'])]
-    #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each 
+    #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each
     pc_ratios = {symbol: stockPC(symbol) for symbol in final_df['Symbol'].unique()}
     pc_df = pd.DataFrame(list(pc_ratios.items()), columns=['Symbol', 'PC'])
     final_df = final_df.merge(pc_df, on='Symbol', how='left')
@@ -258,7 +265,7 @@ if flowFile is not None:
     #     if options_data:
     #         # Calculate average volume for 15 closest strikes to spot price, matching the expiration date
     #         avg_volume = calculate_avg_volume_for_expiration(options_data, spot_price, expiration_date)
-            
+
     #         # Filter out flows whose volume is below the average for the matching expiration date
     #         if avg_volume is not None and volume >= avg_volume:
     #             filtered_flows.append(flow)
