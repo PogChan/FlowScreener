@@ -142,14 +142,16 @@ if flowFile is not None:
     if multiLegs:
         # Step 1: Filter for symbols with more than one entry and high premium
         # We are interested only in trades with premiums over $100,000 to narrow down
-        grouped_flows = grouped_flows[grouped_flows['Premium'] > 100000]
-        multi_leg_candidates = grouped_flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
+        flows = flows[flows['Premium'] > 100000]
+        multi_leg_candidates = flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
 
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
         # Step 2: Define the multi-leg check function
         def is_multi_leg(group):
             # Ensure there is at least one BUY and one SELL
+
+            st.write(group['Symbol'].iloc[0], group)
             has_buy = (group['Buy/Sell'] == 'BUY').any()
             has_sell = (group['Buy/Sell'] == 'SELL').any()
 
@@ -168,7 +170,7 @@ if flowFile is not None:
             return False
 
         # Apply the multi-leg filter to find qualifying groups
-        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol']).filter(is_multi_leg)
+        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(is_multi_leg)
 
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
