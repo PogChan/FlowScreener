@@ -207,5 +207,6 @@ def stockPC(symbol):
         if total_call_exposure == 0:
             return float('inf')  # P/C ratio tends to infinity if there are no calls
         else:
+            st.write(total_put_exposure, '/', total_call_exposure)
             return total_put_exposure / total_call_exposure
 

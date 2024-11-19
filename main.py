@@ -227,6 +227,7 @@ if flowFile is not None:
 
     # make sure that Volume is at least 1.5x for each of the same Symbol, EXpiration, side etc. cause like if after aggregating and ur still not that big of an OI then gg bro
     final_df = final_df[1.5 * final_df['Volume'] >= final_df['OI']]
+    final_df = final_df[final_df['Volume'] > 300]
 
     #Aggregate all the symbols and then we can determine if the total trades on the stock is of a decent size.
     totalPremiumPerStock = final_df.groupby(['Symbol', 'Direction']).agg({
