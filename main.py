@@ -187,7 +187,8 @@ if flowFile is not None:
 
         # Step 1: Sort the symbol_df by relevant columns to align buy/sell pairs
         symbol_df = symbol_df.sort_values(by=['ExpirationDate', 'CallPut', 'Strike', 'Buy/Sell'])
-        st.write(symbol_df)
+
+        st.write(symbol, symbol_df)
         # Step 2: Identify and remove net-zero activity (matching buy/sell pairs)
         to_drop = []
 
@@ -207,7 +208,6 @@ if flowFile is not None:
 
         # Drop the identified rows (net-zero buy/sell pairs)
         symbol_df = symbol_df.drop(symbol_df.index[to_drop])
-
         # Calculate total premium for bullish and bearish directions
         bullish_premium = symbol_df[symbol_df['Direction'] == 'BULLISH']['Premium'].sum()
         bearish_premium = symbol_df[symbol_df['Direction'] == 'BEARISH']['Premium'].sum()
@@ -238,9 +238,20 @@ if flowFile is not None:
 
     final_df = final_df[final_df['Symbol'].isin(totalPremiumPerStock['Symbol'])]
     #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each
-    pc_ratios = {symbol: stockPC(symbol) for symbol in final_df['Symbol'].unique()}
-    pc_df = pd.DataFrame(list(pc_ratios.items()), columns=['Symbol', 'PC'])
-    final_df = final_df.merge(pc_df, on='Symbol', how='left')
+    # Create a dictionary to store the put-to-call ratios for each unique symbol and expiration date combination
+    pc_ratios = {
+        (symbol, expiration_date): stockPC(symbol, expiration_date) 
+        for symbol, expiration_date in final_df[['Symbol', 'ExpirationDate']].drop_duplicates().itertuples(index=False)
+    }
+
+    # Convert the dictionary to a DataFrame for merging
+    pc_df = pd.DataFrame(
+        [(symbol, expiration_date, pc_value) for (symbol, expiration_date), pc_value in pc_ratios.items()],
+        columns=['Symbol', 'ExpirationDate', 'PC']
+    )
+
+    # Merge back with the final_df using both Symbol and ExpirationDate
+    final_df = final_df.merge(pc_df, on=['Symbol', 'ExpirationDate'], how='left')
 
 
     final_df['Moneiness'] = final_df.apply(lambda flow: moneiness(flow, get_options_chain(flow['Symbol'])), axis=1)

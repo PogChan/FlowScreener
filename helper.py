@@ -183,21 +183,25 @@ def get_current_price(symbol):
         st.error(f"Failed to fetch current price for {symbol}. Error: {str(e)}")
         return None
 
-def stockPC(symbol):
+def stockPC(symbol, expirationDate):
     """
     Calculate the put-to-call ratio for the given stock's option chain based on open interest (OI)
     and average exposure from bid/ask price, considering the closest 24 strikes (12 OTM + 12 ITM).
 
     Args:
     - symbol (str): The stock symbol.
+    - expirationDate (str): The expiration date of the option in the format expected by the options chain data.
 
     Returns:
     - float: The Put-to-Call ratio based on OI and premium exposure.
     """
+
     # Fetch current price of the stock
     current_price = get_current_price(symbol)
     if current_price is None:
         return None
+    
+    st.write(symbol, current_price, expirationDate)
 
     # Fetch options chain data
     option_chain = get_options_chain(symbol)
@@ -208,42 +212,46 @@ def stockPC(symbol):
     total_put_exposure = 0.0
     total_call_exposure = 0.0
 
-    # Iterate through the options chain dictionary
-    for expiration, options in option_chain['options'].items():
-        # Options data is usually nested with 'c' for calls and 'p' for puts
-        calls = options.get('c', {})
-        puts = options.get('p', {})
+    # Only consider the specified expiration date
+    expirationDate_str = expirationDate.strftime('%Y-%m-%d')
+    options = option_chain['options'].get(expirationDate_str, None)
+    if not options:
+        return None
 
-        # Get all strikes from both calls and puts
-        all_strikes = sorted(set(map(float, list(calls.keys()) + list(puts.keys()))))
+    # Options data is usually nested with 'c' for calls and 'p' for puts
+    calls = options.get('c', {})
+    puts = options.get('p', {})
 
-        # Find the closest 12 strikes below and above the current price
-        strikes_array = np.array(all_strikes)
-        idx = (np.abs(strikes_array - current_price)).argmin()  # Index of closest strike to the current price
-        lower_bound = max(0, idx - 12)  # Ensure we don't go below index 0
-        upper_bound = min(len(strikes_array), idx + 12)  # Ensure we don't go beyond the list size
+    # Get all strikes from both calls and puts
+    all_strikes = sorted(set(map(float, list(calls.keys()) + list(puts.keys()))))
 
-        closest_strikes = strikes_array[lower_bound:upper_bound]
+    # Find the closest 12 strikes below and above the current price
+    strikes_array = np.array(all_strikes)
+    idx = (np.abs(strikes_array - current_price)).argmin()  # Index of closest strike to the current price
+    lower_bound = max(0, idx - 12)  # Ensure we don't go below index 0
+    upper_bound = min(len(strikes_array), idx + 12)  # Ensure we don't go beyond the list size
 
-        # Sum exposure for call options
-        for strike, call_data in calls.items():
-            strike_price = float(strike)
-            if strike_price in closest_strikes:
-                if 'oi' in call_data and 'b' in call_data and 'a' in call_data:
-                    # Calculate the average of bid and ask
-                    avg_price = (call_data['b'] + call_data['a']) / 2
-                    # Multiply by OI to get total premium exposure
-                    total_call_exposure += call_data['oi'] * avg_price
+    closest_strikes = strikes_array[lower_bound:upper_bound]
 
-        # Sum exposure for put options
-        for strike, put_data in puts.items():
-            strike_price = float(strike)
-            if strike_price in closest_strikes:
-                if 'oi' in put_data and 'b' in put_data and 'a' in put_data:
-                    # Calculate the average of bid and ask
-                    avg_price = (put_data['b'] + put_data['a']) / 2
-                    # Multiply by OI to get total premium exposure
-                    total_put_exposure += put_data['oi'] * avg_price
+    # Sum exposure for call options
+    for strike, call_data in calls.items():
+        strike_price = float(strike)
+        if strike_price in closest_strikes:
+            if 'oi' in call_data and 'b' in call_data and 'a' in call_data:
+                # Calculate the average of bid and ask
+                avg_price = (call_data['b'] + call_data['a']) / 2
+                # Multiply by OI to get total premium exposure
+                total_call_exposure += call_data['oi'] * avg_price
+
+    # Sum exposure for put options
+    for strike, put_data in puts.items():
+        strike_price = float(strike)
+        if strike_price in closest_strikes:
+            if 'oi' in put_data and 'b' in put_data and 'a' in put_data:
+                # Calculate the average of bid and ask
+                avg_price = (put_data['b'] + put_data['a']) / 2
+                # Multiply by OI to get total premium exposure
+                total_put_exposure += put_data['oi'] * avg_price
 
     # Calculate the Put-to-Call ratio based on premium exposure (OI * Avg Bid/Ask)
     if total_call_exposure == 0:
