@@ -76,15 +76,16 @@ if flowFile is not None:
     # Close the browser
     driver.quit()
 
-    # Merge the updated earnings dates back into flows DataFrame
-    updated_df = pd.DataFrame(updated_rows)
-    flows = flows.merge(updated_df, on='Symbol', how='left')
+    if len(updated_rows) != 0:    
+        # Merge the updated earnings dates back into flows DataFrame
+        updated_df = pd.DataFrame(updated_rows)
+        flows = flows.merge(updated_df, on='Symbol', how='left')
+        flows['EarningsDate'] = pd.to_datetime(flows['EarningsDate'], errors='coerce').dt.date
+        flows = flows[~flows['EarningsDate'].isin([todayDATE, tomorrow])]
+    if 'EarningsDate' not in flows.columns:
+        flows['EarningsDate'] = None
 
     flows['ExpirationDate'] = pd.to_datetime(flows['ExpirationDate'],  errors='coerce').dt.date
-    flows['EarningsDate'] = pd.to_datetime(flows['EarningsDate'], errors='coerce').dt.date
-
-    flows = flows[~flows['EarningsDate'].isin([todayDATE, tomorrow])]
-
     flows['Buy/Sell'] = flows['Side'].apply(lambda x: 'BUY' if x in ['A', 'AA'] else 'SELL')
 
 
@@ -144,7 +145,6 @@ if flowFile is not None:
         # We are interested only in trades with premiums over $100,000 to narrow down
         flows = flows[flows['Premium'] > 100000]
         multi_leg_candidates = flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
-
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
         # Step 2: Define the multi-leg check function
@@ -159,14 +159,16 @@ if flowFile is not None:
             call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
 
             if has_buy and has_sell and call_put_check:
-                # Calculate the net premium spent
-                total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
-                total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
-                net_premium_spent = total_buy_premium - total_sell_premium
+                
+                # # Calculate the net premium spent
+                # total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
+                # total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
+                # net_premium_spent = total_buy_premium - total_sell_premium
 
-                # We want to ensure the trader is spending at least $80,000 in net
-                if net_premium_spent >= 80000:
-                    return True
+                # # We want to ensure the trader is spending at least $80,000 in net
+                # if net_premium_spent >= 10000:
+                #     return True
+                return True
             return False
 
         # Apply the multi-leg filter to find qualifying groups
