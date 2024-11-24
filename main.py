@@ -293,6 +293,9 @@ if flowFile is not None:
     #             filtered_flows.append(flow)
     # final_df = pd.DataFrame(filtered_flows)
 
+    final_df['Premium'] = final_df.apply(
+            lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
+    )
     def highlight_er_row(row):
         return ['background-color: yellow' if row['ER'] == 'T' else '' for _ in row]
 
