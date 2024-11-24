@@ -76,7 +76,7 @@ if flowFile is not None:
     # Close the browser
     driver.quit()
 
-    if len(updated_rows) != 0:    
+    if len(updated_rows) != 0:
         # Merge the updated earnings dates back into flows DataFrame
         updated_df = pd.DataFrame(updated_rows)
         flows = flows.merge(updated_df, on='Symbol', how='left')
@@ -159,7 +159,7 @@ if flowFile is not None:
             call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
 
             if has_buy and has_sell and call_put_check:
-                
+
                 # # Calculate the net premium spent
                 # total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 # total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
@@ -173,7 +173,9 @@ if flowFile is not None:
 
         # Apply the multi-leg filter to find qualifying groups
         multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(is_multi_leg)
-
+        multi_leg_symbols['Premium'] = multi_leg_symbols.apply(
+            lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
+        )
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
@@ -242,7 +244,7 @@ if flowFile is not None:
     #PC Ratios calcaultion. get the unqiue symolbs and then get the pc for each
     # Create a dictionary to store the put-to-call ratios for each unique symbol and expiration date combination
     pc_ratios = {
-        (symbol, expiration_date): stockPC(symbol, expiration_date) 
+        (symbol, expiration_date): stockPC(symbol, expiration_date)
         for symbol, expiration_date in final_df[['Symbol', 'ExpirationDate']].drop_duplicates().itertuples(index=False)
     }
 
