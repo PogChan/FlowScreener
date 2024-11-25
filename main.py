@@ -76,7 +76,7 @@ if flowFile is not None:
     # Close the browser
     driver.quit()
 
-    if len(updated_rows) != 0:
+    if len(updated_rows) != 0 and not multiLegs:
         # Merge the updated earnings dates back into flows DataFrame
         updated_df = pd.DataFrame(updated_rows)
         flows = flows.merge(updated_df, on='Symbol', how='left')
