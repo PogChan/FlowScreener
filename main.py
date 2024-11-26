@@ -263,7 +263,6 @@ if flowFile is not None:
     final_df = final_df[final_df['StrikeDiff'] <= 10]
     final_df = final_df.drop(columns=['StrikeDiff'])
 
-    final_df['Premium'] = final_df['Premium'].apply(lambda x: f"{x:,.2f}")
 
     flowTrackingCols = ['Symbol', 'Buy/Sell','ExpirationDate', 'Moneiness', 'CallPut', 'Volume', 'Price', 'PC']
     remaining_columns = [col for col in final_df.columns if col not in flowTrackingCols]
@@ -292,10 +291,12 @@ if flowFile is not None:
     #         if avg_volume is not None and volume >= avg_volume:
     #             filtered_flows.append(flow)
     # final_df = pd.DataFrame(filtered_flows)
-
+    final_df['Premium'] = final_df['Premium'].astype(float)
     final_df['Premium'] = final_df.apply(
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
     )
+    final_df['Premium'] = final_df['Premium'].apply(lambda x: f"{x:,.2f}")
+
     def highlight_er_row(row):
         return ['background-color: yellow' if row['ER'] == 'T' else '' for _ in row]
 
