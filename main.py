@@ -64,7 +64,6 @@ if flowFile is not None:
             else:
                 earnings_date = get_earnings_date(symbol, driver)
                 if earnings_date:
-                    st.write('ER found!', symbol, earnings_date)
                     update_cache(symbol, earnings_date)
         else:
             earnings_date = get_earnings_date(symbol, driver)

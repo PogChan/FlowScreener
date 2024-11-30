@@ -30,6 +30,8 @@ def get_earnings_date(stock_symbol, _driver):
         if announcement_date_span:
             date_str = announcement_date_span.get_text(strip=True)
             announcement_date = datetime.strptime(date_str, "%b %d, %Y").strftime("%Y-%m-%d")
+
+            st.write('ER Found', stock_symbol, announcement_date)
             return announcement_date
         else:
             return None
@@ -168,7 +170,7 @@ def moneiness(flow, options_chain):
 def get_current_price(symbol):
     """
     Fetch the current stock price for the given symbol using yfinance.
-    
+
     Args:
     - symbol (str): Stock symbol.
 
@@ -200,7 +202,7 @@ def stockPC(symbol, expirationDate):
     current_price = get_current_price(symbol)
     if current_price is None:
         return None
-    
+
     st.write(symbol, current_price, expirationDate)
 
     # Fetch options chain data
