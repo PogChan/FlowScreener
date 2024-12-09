@@ -175,6 +175,8 @@ if flowFile is not None:
         multi_leg_symbols['Premium'] = multi_leg_symbols.apply(
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
         )
+        multi_leg_symbols = multi_leg_symbols.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: not all(x['Color'] == 'WHITE'))
+
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
