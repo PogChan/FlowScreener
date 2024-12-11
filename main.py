@@ -144,6 +144,28 @@ if flowFile is not None:
         # We are interested only in trades with premiums over $100,000 to narrow down
         flows = flows[flows['Premium'] > 100000]
         multi_leg_candidates = flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
+        # multi_leg_candidates = multi_leg_candidates.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
+        #     'CreatedDate': 'max',
+        #     'CreatedTime': 'max',
+        #     'Volume': 'sum',
+        #     'Price': 'median',
+        #     'Side': 'first',
+        #     'Spot': 'median',            # Combine Spot as min-max string
+        #     'Premium': 'sum',
+        #     'Color': lambda x: f"{min(x)}-{max(x)}",
+        #     'Sector': 'first',                                 # Take the first as it should be the same
+        #     'OI': 'first',
+        #     'ER': 'first',                                     # Take the first as it should be the same
+        #     'EarningsDate': 'first',
+        #     'Uoa': 'first',                                    # Take the first as it should be the same
+        #     'Weekly': 'first',  
+        #     'ImpliedVolatility': 'mean',                       # Average Implied Volatility
+        #     'MktCap': 'first',                                 # Take the first as it should be the same
+        #     'StockEtf': 'first',                               # Take the first as it should be the same
+        #     'Dte': 'first',                                    # Take the first as it should be the same
+        #     'Type': 'first',
+        # }).reset_index()
+
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
         # Step 2: Define the multi-leg check function
@@ -176,7 +198,11 @@ if flowFile is not None:
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
         )
         multi_leg_symbols = multi_leg_symbols.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: not all(x['Color'] == 'WHITE'))
-
+        
+        desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'ExpirationDate', 'Premium', 'Volume', 'OI']
+        desired_order =  desired_cols + [col for col in multi_leg_symbols.columns if col not in desired_cols]
+        multi_leg_symbols = multi_leg_symbols[desired_order]
+        multi_leg_symbols = multi_leg_symbols.sort_values(['Symbol', 'CreatedTime']).reset_index(drop=True)
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
