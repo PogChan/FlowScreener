@@ -165,6 +165,30 @@ if flowFile is not None:
         #     'Dte': 'first',                                    # Take the first as it should be the same
         #     'Type': 'first',
         # }).reset_index()
+        
+        def filter_out_straddles_strangles(group):
+            # st.write(group['Symbol'].iloc[0], group)
+            # Check if there is both a BUY CALL and BUY PUT
+            buy_call = (group['Buy/Sell'] == 'BUY') & (group['CallPut'] == 'CALL')
+            buy_put = (group['Buy/Sell'] == 'BUY') & (group['CallPut'] == 'PUT')
+            
+            # Only proceed if both BUY CALL and BUY PUT exist
+            if buy_call.any() and buy_put.any():
+                # Calculate lower quartile for Premium within this symbol group
+                lower_quartile = group['Premium'].quantile(0.4)
+                # st.write(lower_quartile)
+                # Sum premiums for BUY CALL and BUY PUT
+                buy_call_premium = group.loc[buy_call, 'Premium'].sum()
+                buy_put_premium = group.loc[buy_put, 'Premium'].sum()
+                
+                # If both BUY CALL and BUY PUT have premiums above the lower quartile, exclude this group
+                if buy_call_premium > lower_quartile and buy_put_premium > lower_quartile:
+                    return False
+            
+            # If there isn't both or if premiums are not high enough, keep the group
+            return True
+        # Apply the filter
+        multi_leg_candidates = multi_leg_candidates.groupby('Symbol').filter(filter_out_straddles_strangles)
 
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
@@ -179,14 +203,16 @@ if flowFile is not None:
             # Ensure there is at least one CALL and one PUT in the group
             call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
 
-            if has_buy and has_sell and call_put_check:
-
-                # # Calculate the net premium spent
+            # Check for exactly one 'White' color in the group
+            white_count = (group['Color'] == 'White').sum()
+            
+            if has_buy and has_sell and call_put_check and white_count <= 1:
+                # Calculate the net premium spent (Commented out as per your code)
                 # total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 # total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
                 # net_premium_spent = total_buy_premium - total_sell_premium
 
-                # # We want to ensure the trader is spending at least $80,000 in net
+                # # We want to ensure the trader is spending at least $80,000 in net (Commented out as per your code)
                 # if net_premium_spent >= 10000:
                 #     return True
                 return True
