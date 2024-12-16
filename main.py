@@ -225,7 +225,7 @@ if flowFile is not None:
         )
         multi_leg_symbols = multi_leg_symbols.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: not all(x['Color'] == 'WHITE'))
         
-        desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'ExpirationDate', 'Premium', 'Volume', 'OI']
+        desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI']
         desired_order =  desired_cols + [col for col in multi_leg_symbols.columns if col not in desired_cols]
         multi_leg_symbols = multi_leg_symbols[desired_order]
         multi_leg_symbols = multi_leg_symbols.sort_values(['Symbol', 'CreatedTime']).reset_index(drop=True)
