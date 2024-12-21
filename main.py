@@ -158,20 +158,20 @@ if flowFile is not None:
         #     'ER': 'first',                                     # Take the first as it should be the same
         #     'EarningsDate': 'first',
         #     'Uoa': 'first',                                    # Take the first as it should be the same
-        #     'Weekly': 'first',  
+        #     'Weekly': 'first',
         #     'ImpliedVolatility': 'mean',                       # Average Implied Volatility
         #     'MktCap': 'first',                                 # Take the first as it should be the same
         #     'StockEtf': 'first',                               # Take the first as it should be the same
         #     'Dte': 'first',                                    # Take the first as it should be the same
         #     'Type': 'first',
         # }).reset_index()
-        
+
         def filter_out_straddles_strangles(group):
             # st.write(group['Symbol'].iloc[0], group)
             # Check if there is both a BUY CALL and BUY PUT
             buy_call = (group['Buy/Sell'] == 'BUY') & (group['CallPut'] == 'CALL')
             buy_put = (group['Buy/Sell'] == 'BUY') & (group['CallPut'] == 'PUT')
-            
+
             # Only proceed if both BUY CALL and BUY PUT exist
             if buy_call.any() and buy_put.any():
                 # Calculate lower quartile for Premium within this symbol group
@@ -180,11 +180,11 @@ if flowFile is not None:
                 # Sum premiums for BUY CALL and BUY PUT
                 buy_call_premium = group.loc[buy_call, 'Premium'].sum()
                 buy_put_premium = group.loc[buy_put, 'Premium'].sum()
-                
+
                 # If both BUY CALL and BUY PUT have premiums above the lower quartile, exclude this group
                 if buy_call_premium > lower_quartile and buy_put_premium > lower_quartile:
                     return False
-            
+
             # If there isn't both or if premiums are not high enough, keep the group
             return True
         # Apply the filter
@@ -204,8 +204,8 @@ if flowFile is not None:
             call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
 
             # Check for exactly one 'White' color in the group
-            white_count = (group['Color'] == 'White').sum()
-            
+            white_count = (group['Color'] == 'WHITE').sum()
+
             if has_buy and has_sell and call_put_check and white_count <= 1:
                 # Calculate the net premium spent (Commented out as per your code)
                 # total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
@@ -224,7 +224,7 @@ if flowFile is not None:
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
         )
         multi_leg_symbols = multi_leg_symbols.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: not all(x['Color'] == 'WHITE'))
-        
+
         desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI']
         desired_order =  desired_cols + [col for col in multi_leg_symbols.columns if col not in desired_cols]
         multi_leg_symbols = multi_leg_symbols[desired_order]
