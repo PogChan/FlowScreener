@@ -202,7 +202,7 @@ if flowFile is not None:
 
             # Ensure there is at least one CALL and one PUT in the group
             call_put_check = {'CALL', 'PUT'}.issubset(group['CallPut'].unique())
-
+            group['Color'] = group['Color'].str.upper()
             # Check for exactly one 'White' color in the group
             white_count = (group['Color'] == 'WHITE').sum()
 
