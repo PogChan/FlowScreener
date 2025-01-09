@@ -7,7 +7,7 @@ import numpy as np
 import time
 
 flowFile = st.file_uploader("Upload Flow File")
-multiLegs = st.checkbox('MultiLegs?')
+multiLegs = st.checkbox('MultiLegs?', value= True)
 
 
 if flowFile is not None:
@@ -165,7 +165,7 @@ if flowFile is not None:
         #     'Dte': 'first',                                    # Take the first as it should be the same
         #     'Type': 'first',
         # }).reset_index()
-
+        st.write(multi_leg_candidates)
         def filter_out_straddles_strangles(group):
             # st.write(group['Symbol'].iloc[0], group)
             # Check if there is both a BUY CALL and BUY PUT
@@ -188,8 +188,7 @@ if flowFile is not None:
             # If there isn't both or if premiums are not high enough, keep the group
             return True
         # Apply the filter
-        multi_leg_candidates = multi_leg_candidates.groupby('Symbol').filter(filter_out_straddles_strangles)
-
+        st.title('Multi Leg Candidates')
         st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
         # Step 2: Define the multi-leg check function
@@ -220,16 +219,19 @@ if flowFile is not None:
 
         # Apply the multi-leg filter to find qualifying groups
         multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(is_multi_leg)
+        #Then remove the conflcting stranggle multi legs 
+        multi_leg_candidates = multi_leg_candidates.groupby('Symbol').filter(filter_out_straddles_strangles)
+        
         multi_leg_symbols['Premium'] = multi_leg_symbols.apply(
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
         )
-        multi_leg_symbols = multi_leg_symbols.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: not all(x['Color'] == 'WHITE'))
-
+        removeTickers = ['SPY', 'SPXW', 'SPX', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX']
+        multi_leg_symbols = multi_leg_symbols[~multi_leg_symbols['Symbol'].isin(removeTickers)]
         desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI']
         desired_order =  desired_cols + [col for col in multi_leg_symbols.columns if col not in desired_cols]
         multi_leg_symbols = multi_leg_symbols[desired_order]
         multi_leg_symbols = multi_leg_symbols.sort_values(['Symbol', 'CreatedTime']).reset_index(drop=True)
-        # Display the result in Streamlit
+        # Display the result in Streamlit    
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
         st.stop()
