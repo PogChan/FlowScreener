@@ -5,6 +5,17 @@ from helper import *
 from db import *
 import numpy as np
 import time
+import yfinance as yf
+
+def get_earnings_date(symbol: str):
+    try:
+        ticker = yf.Ticker(symbol)
+        cal = ticker.calendar
+        if 'Earnings Date' in cal.index:
+            return cal.loc['Earnings Date'][0]  # returns a Timestamp
+    except:
+        pass
+    return None
 
 flowFile = st.file_uploader("Upload Flow File")
 multiLegs = st.checkbox('MultiLegs?', value= True)
@@ -15,17 +26,17 @@ if flowFile is not None:
     flows = pd.read_csv(flowFile)
 
     # Set Chrome options to disable cache
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--disable-application-cache")
-    chrome_options.add_argument("--incognito")  # Use incognito mode to avoid using existing cache
-    chrome_options.add_argument("--headless")  # Run in headless mode
-    chrome_options.add_argument("--no-sandbox")  # Recommended for some headless environments
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Recommended for some headless environments
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    chrome_options.add_argument(f"user-agent={user_agent}")
+    # chrome_options = webdriver.ChromeOptions()
+    # chrome_options.add_argument("--disable-application-cache")
+    # chrome_options.add_argument("--incognito")  # Use incognito mode to avoid using existing cache
+    # chrome_options.add_argument("--headless")  # Run in headless mode
+    # chrome_options.add_argument("--no-sandbox")  # Recommended for some headless environments
+    # chrome_options.add_argument("--disable-dev-shm-usage")  # Recommended for some headless environments
+    # user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    # chrome_options.add_argument(f"user-agent={user_agent}")
 
-    # Initialize ChromeDriver with WebDriver Manager
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # # Initialize ChromeDriver with WebDriver Manager
+    # driver = webdriver.Chrome(service=Service(ChromeDriverManager("131.0.6778.205").install()), options=chrome_options)
 
     # Load the existing cache
     create_database()
@@ -62,18 +73,19 @@ if flowFile is not None:
             if last_week_sunday <= cached_date <= next_week_friday:
                 earnings_date = cached_date_str
             else:
-                earnings_date = get_earnings_date(symbol, driver)
+                earnings_date = get_earnings_date(symbol)
                 if earnings_date:
-                    update_cache(symbol, earnings_date)
+                    update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
         else:
-            earnings_date = get_earnings_date(symbol, driver)
+            earnings_date = get_earnings_date(symbol)
             if earnings_date:
-                update_cache(symbol, earnings_date)
+                update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
 
-        updated_rows.append({"Symbol": symbol, "EarningsDate": earnings_date})
+        updated_rows.append({"Symbol": symbol,
+                             "EarningsDate": earnings_date if earnings_date else None})
 
     # Close the browser
-    driver.quit()
+    # driver.quit()
 
     if len(updated_rows) != 0 and not multiLegs:
         # Merge the updated earnings dates back into flows DataFrame
