@@ -13,6 +13,7 @@ import time
 import random
 import yfinance as yf
 import numpy as np
+import cloudscraper
 
 # Function to get earnings date for a specific stock using an existing driver
 @st.cache_data(ttl=43200)
@@ -47,25 +48,23 @@ user_agents = [
 ]
 
 
-@st.cache_data(ttl=43200)
-# Define function to fetch options chain data from API
+apiUrl = st.secrets["API"]
+baseURL = st.secrets["BASEAPI"]
+
+
+# run options chain
+@st.cache_data(ttl=60*60)
 def get_options_chain(symbol):
-    url = f"https://www.optionsprofitcalculator.com/ajax/getOptions?stock={symbol.upper()}&reqId={random.randint(1, 1000000)}"
-    headers = {
-        'User-Agent': random.choice(user_agents),
-        "Accept-Language": "en-US,en;q=0.9",
-        'Referer': 'https://www.optionsprofitcalculator.com/',
-        'Accept': 'application/json',
-    }
-    st.write(url)
-    time.sleep(1)
-    response = session.get(url, headers=headers)
+    url = f"{baseURL}?stock={symbol.upper()}&reqId={random.randint(1, 1000000)}"
+    scraper = cloudscraper.create_scraper()
+    response = scraper.get(url)
 
     if response.status_code == 200:
         return response.json()
     else:
         st.error(f"Failed to fetch options chain for {symbol}. Status code: {response.status_code}")
         return None
+    
 
 @st.cache_data(ttl=43200)
 def calculate_avg_volume_for_expiration(options_data, spot_price, expiration_date):
