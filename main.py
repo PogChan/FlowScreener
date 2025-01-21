@@ -330,7 +330,6 @@ if flowFile is not None:
     final_df = final_df[final_df['StrikeDiff'] <= 10]
     final_df = final_df.drop(columns=['StrikeDiff'])
 
-
     flowTrackingCols = ['Symbol', 'Buy/Sell','ExpirationDate', 'Moneiness', 'CallPut', 'Volume', 'Price', 'PC']
     remaining_columns = [col for col in final_df.columns if col not in flowTrackingCols]
     final_column_order = flowTrackingCols + remaining_columns
