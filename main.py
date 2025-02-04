@@ -219,13 +219,23 @@ if flowFile is not None:
 
             if has_buy and has_sell and call_put_check and white_count <= 1:
                 # Calculate the net premium spent (Commented out as per your code)
-                # total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
-                # total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
-                # net_premium_spent = total_buy_premium - total_sell_premium
+                total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
+                total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
+                net_premium_spent = total_buy_premium - total_sell_premium
 
-                # # We want to ensure the trader is spending at least $80,000 in net (Commented out as per your code)
-                # if net_premium_spent >= 10000:
-                #     return True
+                # IF Negative spend, make sure the ones that
+                if net_premium_spent < 0:
+                    sell_legs = group[group['Buy/Sell'] == 'SELL']
+                    # Apply the ITM check for each sell leg
+                    sell_otm = sell_legs.apply(
+                        lambda row: (row['CallPut'] == 'CALL' and row['Strike'] > row['Spot']) or 
+                                    (row['CallPut'] == 'PUT' and row['Strike'] < row['Spot']),
+                        axis=1
+                    )
+                    # If all sell legs are OTM, then the negative net premium guarantees a profit
+                    # if the underlying doesn't move; so we don't consider it a multi leg.
+                    if sell_otm.all():
+                        return False
                 return True
             return False
 
