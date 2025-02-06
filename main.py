@@ -207,7 +207,7 @@ if flowFile is not None:
         def is_multi_leg(group):
             # Ensure there is at least one BUY and one SELL
 
-            st.write(group['Symbol'].iloc[0], group)
+            # st.write(group['Symbol'].iloc[0], group)
             has_buy = (group['Buy/Sell'] == 'BUY').any()
             has_sell = (group['Buy/Sell'] == 'SELL').any()
 
