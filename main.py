@@ -218,7 +218,7 @@ if flowFile is not None:
             white_count = (group['Color'] == 'WHITE').sum()
 
             if has_buy and has_sell and call_put_check and white_count <= 1:
-                if group['ER'] == 'T':
+                if (group['ER'] == 'T').any():  
                     return True
 
                 # Calculate the net premium spent (Commented out as per your code)
