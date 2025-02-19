@@ -250,7 +250,7 @@ if flowFile is not None:
         multi_leg_symbols['Premium'] = multi_leg_symbols.apply(
             lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
         )
-        removeTickers = ['SPY', 'SPXW', 'SPX', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX']
+        removeTickers = ['SPY', 'SPXW', 'SPX','NVDA', 'SMCI', 'NFLX', 'CUBE', 'TSLA', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX']
         multi_leg_symbols = multi_leg_symbols[~multi_leg_symbols['Symbol'].isin(removeTickers)]
         desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI']
         desired_order =  desired_cols + [col for col in multi_leg_symbols.columns if col not in desired_cols]
