@@ -60,29 +60,29 @@ if flowFile is not None:
 
     updated_rows = []
 
-    # Loop through flows for symbols with ER=True
-    for _, row in flows[flows['ER'] == 'T'].drop_duplicates(subset='Symbol').iterrows():
-        symbol = row['Symbol']
-        cached_date_str = get_cached_date(symbol)
+    # # Loop through flows for symbols with ER=True
+    # for _, row in flows[flows['ER'] == 'T'].drop_duplicates(subset='Symbol').iterrows():
+    #     symbol = row['Symbol']
+    #     cached_date_str = get_cached_date(symbol)
 
-        st.write(symbol, 'Cached', cached_date_str)
-        # Check if cached date is within this and next week
-        if cached_date_str:
-            cached_date = datetime.strptime(cached_date_str, "%Y-%m-%d")
+    #     st.write(symbol, 'Cached', cached_date_str)
+    #     # Check if cached date is within this and next week
+    #     if cached_date_str:
+    #         cached_date = datetime.strptime(cached_date_str, "%Y-%m-%d")
 
-            if last_week_sunday <= cached_date <= next_week_friday:
-                earnings_date = cached_date_str
-            else:
-                earnings_date = get_earnings_date(symbol)
-                if earnings_date:
-                    update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
-        else:
-            earnings_date = get_earnings_date(symbol)
-            if earnings_date:
-                update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
+    #         if last_week_sunday <= cached_date <= next_week_friday:
+    #             earnings_date = cached_date_str
+    #         else:
+    #             earnings_date = get_earnings_date(symbol)
+    #             if earnings_date:
+    #                 update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
+    #     else:
+    #         earnings_date = get_earnings_date(symbol)
+    #         if earnings_date:
+    #             update_cache(symbol, earnings_date.strftime("%Y-%m-%d"))
 
-        updated_rows.append({"Symbol": symbol,
-                             "EarningsDate": earnings_date if earnings_date else None})
+    #     updated_rows.append({"Symbol": symbol,
+    #                          "EarningsDate": earnings_date if earnings_date else None})
 
     # Close the browser
     # driver.quit()
