@@ -177,7 +177,7 @@ if flowFile is not None:
         #     'Dte': 'first',                                    # Take the first as it should be the same
         #     'Type': 'first',
         # }).reset_index()
-        st.write(multi_leg_candidates)
+        # st.write(multi_leg_candidates)
         def filter_out_straddles_strangles(group):
             # st.write(group['Symbol'].iloc[0], group)
             # Check if there is both a BUY CALL and BUY PUT
