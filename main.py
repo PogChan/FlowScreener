@@ -100,8 +100,22 @@ if flowFile is not None:
     flows['Buy/Sell'] = flows['Side'].apply(lambda x: 'BUY' if x in ['A', 'AA'] else 'SELL')
 
 
+    flows['CreatedDateTime'] = pd.to_datetime(
+        flows['CreatedDate'] + ' ' + flows['CreatedTime'], format='%m/%d/%Y %I:%M:%S %p'
+    )
+
+    # Step 4: Drop the original CreatedDate and CreatedTime columns
+    flows = flows.drop(columns=['CreatedDate', 'CreatedTime'])
+    # Step 2: Sort the DataFrame by the new datetime column to ensure chronological order
+    flows = flows.sort_values('CreatedDateTime', ascending=True)
+
+    # Step 3: Reset the index
+    cols = ['CreatedDateTime'] + [col for col in flows.columns if col not in ['CreatedDateTime', 'CreatedDate', 'CreatedTime']]
+    flows = flows[cols]
+
     st.title("Flows:")
     st.write(flows)
+
 
     grouped_flows = flows.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
         # 'Moneiness':'first',
@@ -112,8 +126,7 @@ if flowFile is not None:
         'Premium': 'sum',
         'ER': 'first',                                     # Take the first as it should be the same
         'EarningsDate': 'first',
-        'CreatedDate': lambda x: f"{min(x)}-{max(x)}",
-        'CreatedTime': lambda x: f"{min(x)}-{max(x)}",
+        'CreatedDateTime': 'last',
         'ImpliedVolatility': 'mean',                       # Average Implied Volatility
         'MktCap': 'first',                                 # Take the first as it should be the same
         'Sector': 'first',                                 # Take the first as it should be the same
@@ -152,32 +165,92 @@ if flowFile is not None:
     remaining_df = grouped_flows[~grouped_flows['Symbol'].isin(consistent_direction_symbols)]
 
     if multiLegs:
-        # Step 1: Filter for symbols with more than one entry and high premium
-        # We are interested only in trades with premiums over $100,000 to narrow down
-        flows = flows[flows['Premium'] > 100000]
-        multi_leg_candidates = flows.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(lambda x: len(x) > 1)
-        # multi_leg_candidates = multi_leg_candidates.groupby(['Symbol', 'Buy/Sell', 'Strike', 'ExpirationDate', 'CallPut']).agg({
-        #     'CreatedDate': 'max',
-        #     'CreatedTime': 'max',
-        #     'Volume': 'sum',
-        #     'Price': 'median',
-        #     'Side': 'first',
-        #     'Spot': 'median',            # Combine Spot as min-max string
-        #     'Premium': 'sum',
-        #     'Color': lambda x: f"{min(x)}-{max(x)}",
-        #     'Sector': 'first',                                 # Take the first as it should be the same
-        #     'OI': 'first',
-        #     'ER': 'first',                                     # Take the first as it should be the same
-        #     'EarningsDate': 'first',
-        #     'Uoa': 'first',                                    # Take the first as it should be the same
-        #     'Weekly': 'first',
-        #     'ImpliedVolatility': 'mean',                       # Average Implied Volatility
-        #     'MktCap': 'first',                                 # Take the first as it should be the same
-        #     'StockEtf': 'first',                               # Take the first as it should be the same
-        #     'Dte': 'first',                                    # Take the first as it should be the same
-        #     'Type': 'first',
-        # }).reset_index()
-        # st.write(multi_leg_candidates)
+        # 1) Filter down to true multi-legs
+        multi_leg_candidates = (
+            flows
+            .groupby(['Symbol', 'CreatedDateTime'])
+            .filter(lambda g: len(g) > 1)
+            .copy()
+        )
+
+        # Make sell premiums negative
+        multi_leg_candidates['Premium'] = multi_leg_candidates.apply(
+            lambda r: -r['Premium'] if r['Buy/Sell'] == 'SELL' else r['Premium'],
+            axis=1
+        )
+
+        # 2) Build a “signature” for each timestamped group
+        def make_signature(g):
+            cnt = (
+                g
+                .groupby(['Buy/Sell', 'CallPut', 'Strike', 'ExpirationDate'])
+                .size()
+                .reset_index(name='count')
+            )
+            return ";".join(
+                sorted(
+                    f"{row['Buy/Sell']}_{row['CallPut']}_{row['Strike']}_{row['ExpirationDate']}_{row['count']}"
+                    for _, row in cnt.iterrows()
+                )
+            )
+
+        # Create signature without using include_group_columns
+        sigs = (
+            multi_leg_candidates
+            .groupby(['Symbol', 'CreatedDateTime'])
+            .apply(lambda g: pd.Series({'Signature': make_signature(g)}))
+            .reset_index()
+        )
+
+        # 3) Attach signatures
+        multi_leg_candidates = multi_leg_candidates.merge(
+            sigs,
+            on=['Symbol', 'CreatedDateTime'],
+            how='left'
+        )
+
+        # 4) Aggregate within each unique leg (Symbol, CallPut, Strike, Buy/Sell, Expiry, Signature)
+        agg = (
+            multi_leg_candidates
+            .groupby(['Symbol', 'CallPut', 'Strike', 'Buy/Sell', 'ExpirationDate', 'Signature'], as_index=False)
+            .agg(
+                TotalVolume=('Volume', 'sum'),
+                TotalPremium=('Premium', 'sum'),
+                MinOI=('OI', 'min'),
+                PriceMean=('Price', 'mean'),
+            )
+        )
+
+        # 5) Merge the totals back in
+        merged = multi_leg_candidates.merge(
+            agg,
+            on=['Symbol', 'CallPut', 'Strike', 'Buy/Sell', 'ExpirationDate', 'Signature'],
+            how='left',
+            suffixes=('_orig', '')
+        )
+        merged = merged.sort_values(['CreatedDateTime'], ascending=False)
+
+        # 6) Drop duplicates to get one row per signature
+        multi_leg_candidates = merged.drop_duplicates(
+            subset=['Symbol', 'CallPut', 'Strike', 'Buy/Sell', 'ExpirationDate', 'Signature'],
+            keep='last'
+        )
+
+        multi_leg_candidates = multi_leg_candidates.copy()
+        multi_leg_candidates.drop(columns=['Premium', 'Volume', 'Price'], inplace=True)
+        multi_leg_candidates = multi_leg_candidates.rename(columns={
+            'TotalVolume': 'Volume',
+            'TotalPremium': 'Premium',
+            'PriceMean': 'Price'
+        })
+
+
+        multi_leg_candidates = multi_leg_candidates[abs(multi_leg_candidates['Premium']) > 100000]
+
+
+        st.write(multi_leg_candidates)
+
+
         def filter_out_straddles_strangles(group):
             # st.write(group['Symbol'].iloc[0], group)
             # Check if there is both a BUY CALL and BUY PUT
@@ -186,22 +259,22 @@ if flowFile is not None:
 
             # Only proceed if both BUY CALL and BUY PUT exist
             if buy_call.any() and buy_put.any():
-                # Calculate lower quartile for Premium within this symbol group
-                lower_quartile = group['Premium'].quantile(0.4)
-                # st.write(lower_quartile)
-                # Sum premiums for BUY CALL and BUY PUT
+                # Calculate total premiums for BUY CALL and BUY PUT
                 buy_call_premium = group.loc[buy_call, 'Premium'].sum()
                 buy_put_premium = group.loc[buy_put, 'Premium'].sum()
 
-                # If both BUY CALL and BUY PUT have premiums above the lower quartile, exclude this group
-                if buy_call_premium > lower_quartile and buy_put_premium > lower_quartile:
-                    return False
+                # Calculate the total premium for both BUY CALL and BUY PUT combined
+                total_premium = buy_call_premium + buy_put_premium
+
+                # Check if both sides contribute within a similar range (e.g., 40% - 60%)
+                call_contribution = buy_call_premium / total_premium
+                put_contribution = buy_put_premium / total_premium
+                # If both sides contribute within a similar range (e.g., 40% - 60%), keep the group
+                if 0.4 <= call_contribution <= 0.6 and 0.4 <= put_contribution <= 0.6:
+                    return False  # Keep the group
 
             # If there isn't both or if premiums are not high enough, keep the group
             return True
-        # Apply the filter
-        st.title('Multi Leg Candidates')
-        st.dataframe(multi_leg_candidates)  # Display initial multi-leg candidates for review
 
         # Step 2: Define the multi-leg check function
         def is_multi_leg(group):
@@ -241,24 +314,24 @@ if flowFile is not None:
                         return False
                 return True
             return False
-
+        
         # Apply the multi-leg filter to find qualifying groups
-        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDate', 'CreatedTime']).filter(is_multi_leg)
+        multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDateTime']).filter(is_multi_leg)
+        st.write(multi_leg_symbols)
         #Then remove the conflcting stranggle multi legs
-        multi_leg_candidates = multi_leg_candidates.groupby('Symbol').filter(filter_out_straddles_strangles)
+        multi_leg_symbols = multi_leg_symbols.groupby('Symbol').filter(filter_out_straddles_strangles)
+        
 
-        multi_leg_symbols['Premium'] = multi_leg_symbols.apply(
-            lambda row: -row['Premium'] if row['Buy/Sell'] == 'SELL' else row['Premium'], axis=1
-        )
-        removeTickers = ['SPY', 'SPXW', 'SPX','NVDA', 'SMCI', 'NFLX', 'CUBE', 'TSLA', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX', 'AAPL', 'AMZN', 'FBTC', 'GOOGL', 'RUTW']
-        multi_leg_symbols = multi_leg_symbols[~multi_leg_symbols['Symbol'].isin(removeTickers)]
+        # removeTickers = ['SPY', 'SPXW', 'SPX','NVDA', 'SMCI', 'NFLX', 'CUBE', 'TSLA', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX', 'AAPL', 'AMZN', 'FBTC', 'GOOGL', 'RUTW']
+        # multi_leg_symbols = multi_leg_symbols[~multi_leg_symbols['Symbol'].isin(removeTickers)]
 
         multi_leg_symbols['Separator'] = '@@@'
-        desired_cols = ['CreatedDate', 'CreatedTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI', 'Price', 'Side', 'Color', 'ImpliedVolatility', 'Dte', 'ER', 'Separator']
+
+        desired_cols = ['CreatedDateTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI', 'Price', 'Side', 'Color', 'ImpliedVolatility', 'Dte', 'ER', 'Signature', 'Separator']
         desired_order =  desired_cols
         # + [col for col in multi_leg_symbols.columns if col not in desired_cols]
         multi_leg_symbols = multi_leg_symbols[desired_order]
-        multi_leg_symbols = multi_leg_symbols.sort_values(['Symbol', 'CreatedTime']).reset_index(drop=True)
+        multi_leg_symbols = multi_leg_symbols.sort_values(['Symbol', 'CreatedDateTime']).reset_index(drop=True)
         # Display the result in Streamlit
         st.title('Multi Legs worth Noting')
         st.dataframe(multi_leg_symbols)
