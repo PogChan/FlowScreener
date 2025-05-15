@@ -230,16 +230,15 @@ if flowFile is not None:
             how='left',
             suffixes=('_orig', '')
         )
-        merged = merged.sort_values(['CreatedDateTime'], ascending=False)
-        
-        
+        merged = merged.sort_values(['CreatedDateTime'], ascending=False).reset_index(drop=True)
+        st.title('merged')
+        st.write(merged)
         #Simple clean nup
         # 6) Drop duplicates to get one row per signature
         multi_leg_candidates = merged.drop_duplicates(
             subset=['Symbol', 'CallPut', 'Strike', 'Buy/Sell', 'ExpirationDate', 'Signature'],
-            keep='last'
+            keep='first'
         )
-
         multi_leg_candidates = multi_leg_candidates.copy()
         multi_leg_candidates.drop(columns=['Premium', 'Volume', 'Price'], inplace=True)
         multi_leg_candidates = multi_leg_candidates.rename(columns={
@@ -249,6 +248,7 @@ if flowFile is not None:
         })
         multi_leg_candidates = multi_leg_candidates[abs(multi_leg_candidates['Premium']) > 100000]
 
+        st.write(multi_leg_candidates)
 
 
         def filter_out_straddles_strangles(group):
