@@ -148,7 +148,7 @@ if flowFile is not None:
     directions = ['BEARISH', 'BULLISH', 'BULLISH', 'BEARISH']
     grouped_flows['Direction'] = np.select(conditions, directions, default='neutral')
 
-    st.write(grouped_flows)
+    # st.write(grouped_flows)
     # For normal flkow you would want to ensure that Identify symbols where all entries have the same direction cause thats good directional bais not straddle shits
     consistent_direction_symbols = (
         grouped_flows.groupby('Symbol')['Direction']
@@ -208,7 +208,8 @@ if flowFile is not None:
             on=['Symbol', 'CreatedDateTime'],
             how='left'
         )
-
+        
+        st.write(multi_leg_candidates)
         # 4) Aggregate within each unique leg (Symbol, CallPut, Strike, Buy/Sell, Expiry, Signature)
         agg = (
             multi_leg_candidates
@@ -218,9 +219,10 @@ if flowFile is not None:
                 TotalPremium=('Premium', 'sum'),
                 MinOI=('OI', 'min'),
                 PriceMean=('Price', 'mean'),
+                SetCount=('Symbol', 'size')
             )
         )
-
+        
         # 5) Merge the totals back in
         merged = multi_leg_candidates.merge(
             agg,
@@ -229,7 +231,9 @@ if flowFile is not None:
             suffixes=('_orig', '')
         )
         merged = merged.sort_values(['CreatedDateTime'], ascending=False)
-
+        
+        
+        #Simple clean nup
         # 6) Drop duplicates to get one row per signature
         multi_leg_candidates = merged.drop_duplicates(
             subset=['Symbol', 'CallPut', 'Strike', 'Buy/Sell', 'ExpirationDate', 'Signature'],
@@ -243,12 +247,8 @@ if flowFile is not None:
             'TotalPremium': 'Premium',
             'PriceMean': 'Price'
         })
-
-
         multi_leg_candidates = multi_leg_candidates[abs(multi_leg_candidates['Premium']) > 100000]
 
-
-        st.write(multi_leg_candidates)
 
 
         def filter_out_straddles_strangles(group):
@@ -317,7 +317,7 @@ if flowFile is not None:
         
         # Apply the multi-leg filter to find qualifying groups
         multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDateTime']).filter(is_multi_leg)
-        st.write(multi_leg_symbols)
+
         #Then remove the conflcting stranggle multi legs
         multi_leg_symbols = multi_leg_symbols.groupby('Symbol').filter(filter_out_straddles_strangles)
         
@@ -327,7 +327,7 @@ if flowFile is not None:
 
         multi_leg_symbols['Separator'] = '@@@'
 
-        desired_cols = ['CreatedDateTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI', 'Price', 'Side', 'Color', 'ImpliedVolatility', 'Dte', 'ER', 'Signature', 'Separator']
+        desired_cols = ['CreatedDateTime', 'Symbol', 'Buy/Sell', 'CallPut', 'Strike', 'Spot', 'ExpirationDate', 'Premium', 'Volume', 'OI', 'Price', 'Side', 'Color', 'SetCount', 'ImpliedVolatility', 'Dte', 'ER', 'Separator']
         desired_order =  desired_cols
         # + [col for col in multi_leg_symbols.columns if col not in desired_cols]
         multi_leg_symbols = multi_leg_symbols[desired_order]
