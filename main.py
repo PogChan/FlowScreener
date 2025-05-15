@@ -297,7 +297,7 @@ if flowFile is not None:
                 # Calculate the net premium spent (Commented out as per your code)
                 total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
-                net_premium_spent = total_buy_premium - total_sell_premium
+                net_premium_spent = total_buy_premium + total_sell_premium
 
                 # IF Negative spend, make sure the ones that
                 if net_premium_spent < 0:
