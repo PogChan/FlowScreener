@@ -289,8 +289,8 @@ if flowFile is not None:
             group['Color'] = group['Color'].str.upper()
             # Check for exactly one 'White' color in the group
             white_count = (group['Color'] == 'WHITE').sum()
-
-            if has_buy and has_sell and call_put_check and white_count <= 1:
+            # and white_count <= 1
+            if has_buy and has_sell and call_put_check:
                 # if (group['ER'] == 'T').any():
                 #     return True
 
