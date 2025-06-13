@@ -290,34 +290,33 @@ if flowFile is not None:
             # Check for exactly one 'White' color in the group
             white_count = (group['Color'] == 'WHITE').sum()
             # and white_count <= 1
-            if has_buy and has_sell and call_put_check:
+            if has_buy and has_sell and call_put_check and white_count == 0:
                 # if (group['ER'] == 'T').any():
                 #     return True
+                # st.write(group)
 
                 # Calculate the net premium spent (Commented out as per your code)
                 total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
                 net_premium_spent = total_buy_premium + total_sell_premium
-
                 # IF Negative spend, make sure the ones that
-                if net_premium_spent < 0:
-                    sell_legs = group[group['Buy/Sell'] == 'SELL']
-                    # Apply the ITM check for each sell leg
-                    sell_otm = sell_legs.apply(
-                        lambda row: (row['CallPut'] == 'CALL' and row['Strike'] > row['Spot']) or
-                                    (row['CallPut'] == 'PUT' and row['Strike'] < row['Spot']),
-                        axis=1
-                    )
-                    # If all sell legs are OTM, then the negative net premium guarantees a profit
-                    # if the underlying doesn't move; so we don't consider it a multi leg.
-                    if sell_otm.all():
-                        return False
+                # if net_premium_spent < 0:
+                #     sell_legs = group[group['Buy/Sell'] == 'SELL']
+                #     # Apply the ITM check for each sell leg
+                #     sell_otm = sell_legs.apply(
+                #         lambda row: (row['CallPut'] == 'CALL' and row['Strike'] > row['Spot']) or
+                #                     (row['CallPut'] == 'PUT' and row['Strike'] < row['Spot']),
+                #         axis=1
+                #     )
+                #     # If all sell legs are OTM, then the negative net premium guarantees a profit
+                #     # if the underlying doesn't move; so we don't consider it a multi leg.
+                #     if sell_otm.all():
+                #         return False
                 return True
             return False
         
         # Apply the multi-leg filter to find qualifying groups
         multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDateTime']).filter(is_multi_leg)
-
         #Then remove the conflcting stranggle multi legs
         multi_leg_symbols = multi_leg_symbols.groupby('Symbol').filter(filter_out_straddles_strangles)
         
