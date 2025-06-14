@@ -208,7 +208,7 @@ if flowFile is not None:
             on=['Symbol', 'CreatedDateTime'],
             how='left'
         )
-        
+
         st.write(multi_leg_candidates)
         # 4) Aggregate within each unique leg (Symbol, CallPut, Strike, Buy/Sell, Expiry, Signature)
         agg = (
@@ -222,7 +222,7 @@ if flowFile is not None:
                 SetCount=('Symbol', 'size')
             )
         )
-        
+
         # 5) Merge the totals back in
         merged = multi_leg_candidates.merge(
             agg,
@@ -295,6 +295,9 @@ if flowFile is not None:
                 #     return True
                 # st.write(group)
 
+                if not (group['Volume'] > group['OI']).all():
+                    return False
+
                 # Calculate the net premium spent (Commented out as per your code)
                 total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
@@ -314,12 +317,12 @@ if flowFile is not None:
                 #         return False
                 return True
             return False
-        
+
         # Apply the multi-leg filter to find qualifying groups
         multi_leg_symbols = multi_leg_candidates.groupby(['Symbol', 'CreatedDateTime']).filter(is_multi_leg)
         #Then remove the conflcting stranggle multi legs
         multi_leg_symbols = multi_leg_symbols.groupby('Symbol').filter(filter_out_straddles_strangles)
-        
+
 
         # removeTickers = ['SPY', 'SPXW', 'SPX','NVDA', 'SMCI', 'NFLX', 'CUBE', 'TSLA', 'RUT', 'IWM', 'QQQ', 'NDXP', 'NDX', 'AAPL', 'AMZN', 'FBTC', 'GOOGL', 'RUTW']
         # multi_leg_symbols = multi_leg_symbols[~multi_leg_symbols['Symbol'].isin(removeTickers)]
