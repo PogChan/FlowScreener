@@ -246,8 +246,7 @@ if flowFile is not None:
             'TotalPremium': 'Premium',
             'PriceMean': 'Price'
         })
-        multi_leg_candidates = multi_leg_candidates[abs(multi_leg_candidates['Premium']) > 100000]
-
+        
         st.write(multi_leg_candidates)
 
 
@@ -298,10 +297,11 @@ if flowFile is not None:
                 if not (group['Volume'] > group['OI']).all():
                     return False
 
-                # Calculate the net premium spent (Commented out as per your code)
                 total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
                 net_premium_spent = total_buy_premium + total_sell_premium
+                if net_premium_spent > 0 and net_premium_spent < 70000:
+                    return False
                 # IF Negative spend, make sure the ones that
                 # if net_premium_spent < 0:
                 #     sell_legs = group[group['Buy/Sell'] == 'SELL']
