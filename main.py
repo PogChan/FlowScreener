@@ -246,7 +246,7 @@ if flowFile is not None:
             'TotalPremium': 'Premium',
             'PriceMean': 'Price'
         })
-        
+
         st.write(multi_leg_candidates)
 
 
@@ -300,7 +300,7 @@ if flowFile is not None:
                 total_buy_premium = group[group['Buy/Sell'] == 'BUY']['Premium'].sum()
                 total_sell_premium = group[group['Buy/Sell'] == 'SELL']['Premium'].sum()
                 net_premium_spent = total_buy_premium + total_sell_premium
-                if net_premium_spent > 0 and net_premium_spent < 70000:
+                if abs(net_premium_spent) < 70000:
                     return False
                 # IF Negative spend, make sure the ones that
                 # if net_premium_spent < 0:
